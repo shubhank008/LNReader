@@ -140,7 +140,7 @@ function getSynopsisForTitle($title){
 	return $synopsis;
 }
 
-function getChapterInfoForChapterLink($link)
+function getChapterContentForChapterLink($link)
 {
     $html=file_get_html($link);
     $data=$html->find('html body div#mw-content-text',0);
@@ -168,5 +168,5 @@ function getChapterInfoForChapterLink($link)
     return $formattedText;
 }
 
-echo getChapterInfoForChapterLink("http://www.baka-tsuki.org/project/index.php?title=Absolute_Duo:Volume_1_Chapter_1");
+echo getChapterContentForChapterLink("http://www.baka-tsuki.org/project/index.php?title=Absolute_Duo:Volume_1_Chapter_1");
 ?>
