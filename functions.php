@@ -1,4 +1,6 @@
 <?php
+require_once("./simple_html_dom.php");
+require_once("./mangaupdates.php");
 class LNScrape{
 	private $DBHost;
 	private $DBUser;
@@ -9,12 +11,11 @@ class LNScrape{
 	Private $ConnectionHandler;
 	
 	Public function LNScrape(){ # Defines variable values.
-		require_once("./simple_html_dom.php");
-		$this->DBHost=("localhost"); #DB Location
-		$this->DBUser=("TestUser"); #DB Username
+		$this->DBHost=("95.211.214.180"); #DB Location
+		$this->DBUser=("TestUser2"); #DB Username
 		$this->DBHPass=("test"); #DB Password
-		$this->DBDatabase=("LNScrape"); #Name of database
-		$this->DBTableLN=("LN"); #Name of table to put LN's.
+		$this->DBDatabase=("TestDBOne"); #Name of database
+		$this->DBTableLN=("titles"); #Name of table to put LN's.
 	}
 	Private function DBConnect(){ # Creates a new connection to DB.
 		$this->ConnectionHandler = new PDO("mysql:host=$this->DBHost;dbname=$this->DBDatabase", $this->DBUser, $this->DBHPass);
@@ -22,7 +23,11 @@ class LNScrape{
 	Private function DBClose(){ # Closes connection to DB.
 		$this->ConnectionHandler = null;	
 	}
-	Private function GetLN(){ # Gets a list of LN's an returns in array.
+	
+	////////////////////////////
+	//baka-Tsuki Functionality//
+	////////////////////////////
+	public function GetLN(){ # Gets a list of LN's an returns in array.
 		require_once("./simple_html_dom.php");
 		$titles = array();
 		$html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=Category:Light_novel_(English)");
@@ -31,7 +36,7 @@ class LNScrape{
 		}
 		return $titles;
 	}
-	private function getDescForTitle($title){ # Gets description for each LN.
+	public function getDescForTitle($title){ # Gets description for each LN.
         $title = str_replace(" ","_",$title);
         $html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title"); 
 		$html = $html->getElementById('mw-content-text'); # Gets all html code inside mw-content-text div.  
@@ -44,34 +49,62 @@ class LNScrape{
 		}
 		if (empty($abc)){ # If all the above failes it will return "NO DESCRIPTION"
 			#return($html);
-			return("NO DESCRIPTION");
+			//return("NO DESCRIPTION");
+			return $this->tryDescForTitle($title);
 		}else{
 			return($desc[0]); # First value in array is always right.
 		}
 		
 	}
-	private function getImageForTitle($title, $Array=1){ # Gets a list of img links for LN, as default it will output an array but you can tell it to output a large string where each links is seperated with a new line.
-			$title = str_replace(" ","_",$title);
-			$images = array();
-			$html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title");
-			foreach($html->find('html body div div div a.image img') as $element) {
-				$ImgUrl = "http://www.baka-tsuki.org" . $element->src;
-				if($ImgUrl == "http://www.baka-tsuki.org/project/images/5/53/Stalled.gif"){ #This is one of the status images that we dont need.
-					# Unwanted Img
-				}else{
-					# Wanted Img.
-					$ImageArray[]=$ImgUrl;
-				}
-			}
-			if($Array == 1){
-				return $ImageArray;
-			}else{
-				foreach($ImageArray as $Img){
-					$ImgString = $ImgString . $Img;	
-					$ImgString = $ImgString . "\n"; # Inserts newline.
-				}
-				return $ImgString;	
-			}
+	//Fall back method to try and get Desc if above fails
+	private function tryDescForTitle($title){
+	$title = str_replace(" ","_",$title);
+	$html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title");
+	$desc = $html->find('html body div div div p',0)->plaintext;
+	//$descTest = explode(' ',trim($desc));
+	$words = explode (' ',"This project has been");
+	if($this->contains_all($desc,$words)){
+	$desc = $html->find('html body div div div p',1)->plaintext;
+	//echo "DEBUG inact proj";
+	}
+	if($this->contains_all($desc,explode(' ',"series is also available in the following"))){
+	$desc = "NO DESCRIPTION LAN";
+	$desc = $html->find('html body div div div p',1)->plaintext;
+	}
+	if($this->contains_all($desc,explode(' ',"revive this project by joining the translation"))){
+	$desc = "NO DESCRIPTION REV";
+	$desc = $html->find('html body div div div p',2)->plaintext;
+	}
+	if($this->contains_all($desc,explode(' ',"Abandonment Policy"))){
+	$desc = "NO DESCRIPTION ABAN";
+	$desc = $html->find('html body div div div p',2)->plaintext;
+	}
+	if($this->contains_all($desc,explode(' ',"Light Novel Translation Project."))){
+	$desc = "NO DESCRIPTION TRA";
+	$desc = $html->find('html body div div div p',1)->plaintext;
+	}
+	if($this->contains_all($desc,explode(' ',"is available in the following languages:"))){
+	$desc = "NO DESCRIPTION LAN2";
+	//$desc = $html->find('html body div div div p',1)->plaintext;
+	}
+	/*if(in_array("This",$descTest)) {
+	$desc = $html->find('html body div div div p',1)->plaintext;
+	}*/
+	return $desc;
+	}
+	
+	//Get all images from LN detail page
+	public function getImageForTitle($title){
+	$title = str_replace(" ","_",$title);
+	$images = array();
+	$html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title");
+	foreach($html->find('html body div div div a.image img') as $element) {
+	$imgurl = "http://www.baka-tsuki.org".$element->src;
+	if($imgurl!="http://www.baka-tsuki.org/project/images/5/53/Stalled.gif"){
+	$images[]=$this->parseThumbnail($imgurl);
+	}
+	}
+	return $images;
 	}
 	Public function Scrape(){ # Main Function.
 		header('Cache-Control: no-cache'); # Don't allow caching.
@@ -107,6 +140,31 @@ class LNScrape{
 			echo "Done: " . $TitleArrayDone . "/" . $TitleArrayMaxCount;
 			echo "<br>";
 		}
+	}
+	
+	
+	
+	########################################
+	##### UTILITY FUNCTIONS ################
+	########################################
+	private function contains_all($str,array $words) {
+	    if(!is_string($str))
+	        { return false; }
+	
+	    foreach($words as $word) {
+	        if(!is_string($word) || stripos($str,$word)===false)
+	            { return false; }
+	    }
+	    return true;
+	}
+	private function parseThumbnail($thumbnail){
+		if(!strpos($thumbnail,"/thumb/")){
+		return $thumbnail;
+		}
+		$thumbnail = str_replace("/thumb","",$thumbnail);
+		$basename = basename($thumbnail);
+		$thumbnail = str_replace("/$basename","",$thumbnail);
+		return $thumbnail;
 	}
 }
 ?>
