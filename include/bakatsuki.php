@@ -123,6 +123,7 @@ function getImageForTitle($title){
 	}
 	return $images;
 }
+
 //Get LN synopsis
 function getSynopsisForTitle($title){
 	$title = str_replace(" ","_",$title);
@@ -139,4 +140,33 @@ function getSynopsisForTitle($title){
 	return $synopsis;
 }
 
+function getChapterContentForChapterLink($link)
+{
+    $html=file_get_html($link);
+    $data=$html->find('html body div#mw-content-text',0);
+    
+    $formattedText="";
+    foreach($data->childNodes() as $element)
+    {
+        if($element->tag=='h2' || $element->tag=='comment' || $element->tag=='table') continue;
+        if($element->tag=='p')
+        {
+            $formattedText.=$element->innertext."<br>";
+        }
+        
+        if($element->tag=='h3')
+        {
+            $formattedText.="[bold]".$element->innertext."[/bold]<br>";
+        }
+        
+        if($element->tag=='div')
+        {
+            $formattedText.="[IMG]".$element->innertext."[/IMG]";
+        }
+    }
+    
+    return $formattedText;
+}
+
+echo getChapterContentForChapterLink("http://www.baka-tsuki.org/project/index.php?title=Absolute_Duo:Volume_1_Chapter_1");
 ?>
