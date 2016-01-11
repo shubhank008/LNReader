@@ -1,7 +1,7 @@
 <?php
 
-require dirname(__FILE__) . '/simple_html_dom.php';
-require dirname(__FILE__) . '/mangaupdates.php';
+require 'simple_html_dom.php';
+require 'mangaupdates.php';
 //require '../db.php';
 
 function getList(){
