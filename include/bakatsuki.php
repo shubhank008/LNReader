@@ -1,7 +1,7 @@
 <?php
 
-require dirname(__FILE__) . '/simple_html_dom.php';
-require dirname(__FILE__) . '/mangaupdates.php';
+require 'simple_html_dom.php';
+require 'mangaupdates.php';
 //require '../db.php';
 
 function getList(){
@@ -123,6 +123,7 @@ function getImageForTitle($title){
 	}
 	return $images;
 }
+
 //Get LN synopsis
 function getSynopsisForTitle($title){
 	$title = str_replace(" ","_",$title);
@@ -139,4 +140,51 @@ function getSynopsisForTitle($title){
 	return $synopsis;
 }
 
+function getChapterContentForChapterLink($link)
+{
+    $html=file_get_html($link);
+    $data=$html->find('html body div#mw-content-text',0);
+    
+    $jsonFormatter=array();
+    foreach($data->childNodes() as $element)
+    {
+        if($element->tag=='h2' || $element->tag=='comment' || $element->tag=='table') continue;
+        
+        if($element->tag=='h3')
+        {
+            $jsonFormatter[]['h3']=$element->innertext;
+            continue;
+        }
+        
+        if($element->tag=='p')
+        {
+            if(count($element->children())==1)
+            {
+                if($element->firstChild()->tag=='br') $jsonFormatter[]='\n';
+                continue;
+            }
+            $jsonFormatter[]['p']=$element->innertext;
+            continue;
+        }
+        
+        if($element->tag=='div' && $element->class=='thumb tright')
+        {
+            $arr=array();
+            $thumbCon=$element->firstChild()->firstChild();
+            if($thumbCon->tag=='a' && $thumbCon->class='image')
+            {
+                $arr['imgLink']=$thumbCon->href;
+                $img=$thumbCon->firstChild();
+                $arr['imgThumbLink']=$img->src;
+                $arr['imgTitle']=$img->alt;
+                $arr['imgSrcSet']=$img->srcset;
+            }
+            $jsonFormatter[]=$arr;
+        }
+    }
+    
+    return $jsonFormatter;
+}
+
+print_r(getChapterContentForChapterLink("http://www.baka-tsuki.org/project/index.php?title=Absolute_Duo:Volume_1_Chapter_1"));
 ?>
