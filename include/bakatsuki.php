@@ -145,28 +145,46 @@ function getChapterContentForChapterLink($link)
     $html=file_get_html($link);
     $data=$html->find('html body div#mw-content-text',0);
     
-    $formattedText="";
+    $jsonFormatter=array();
     foreach($data->childNodes() as $element)
     {
         if($element->tag=='h2' || $element->tag=='comment' || $element->tag=='table') continue;
-        if($element->tag=='p')
-        {
-            $formattedText.=$element->innertext."<br>";
-        }
         
         if($element->tag=='h3')
         {
-            $formattedText.="[bold]".$element->innertext."[/bold]<br>";
+            $jsonFormatter[]['h3']=$element->innertext;
+            continue;
         }
         
-        if($element->tag=='div')
+        if($element->tag=='p')
         {
-            $formattedText.="[IMG]".$element->innertext."[/IMG]";
+            if(count($element->children())==1)
+            {
+                if($element->firstChild()->tag=='br') $jsonFormatter[]='\n';
+                continue;
+            }
+            $jsonFormatter[]['p']=$element->innertext;
+            continue;
+        }
+        
+        if($element->tag=='div' && $element->class=='thumb tright')
+        {
+            $arr=array();
+            $thumbCon=$element->firstChild()->firstChild();
+            if($thumbCon->tag=='a' && $thumbCon->class='image')
+            {
+                $arr['imgLink']=$thumbCon->href;
+                $img=$thumbCon->firstChild();
+                $arr['imgThumbLink']=$img->src;
+                $arr['imgTitle']=$img->alt;
+                $arr['imgSrcSet']=$img->srcset;
+            }
+            $jsonFormatter[]=$arr;
         }
     }
     
-    return $formattedText;
+    return $jsonFormatter;
 }
 
-echo getChapterContentForChapterLink("http://www.baka-tsuki.org/project/index.php?title=Absolute_Duo:Volume_1_Chapter_1");
+print_r(getChapterContentForChapterLink("http://www.baka-tsuki.org/project/index.php?title=Absolute_Duo:Volume_1_Chapter_1"));
 ?>
