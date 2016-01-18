@@ -156,11 +156,9 @@ function getSynopsisForTitle($title){
             $nextItemIsDesc=true;
         }
     }
-    echo $synopsis;
 	return $synopsis;
 }
 
-getSynopsisForTitle("Absolute Duo");
 function getChapterContentForChapterLink($link)
 {
     $html=file_get_html($link);
