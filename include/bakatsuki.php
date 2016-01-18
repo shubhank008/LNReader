@@ -18,7 +18,7 @@ $ln_title=$title;
 $title = str_replace(" ","_",$title);
 $html = file_get_contents("http://www.baka-tsuki.org/project/index.php?title=".$title."&action=edit");
 	$data = preg_split('/<textarea readonly="" accesskey="," id="wpTextbox1" cols="80" rows="25" style="" lang="en" dir="ltr" name="wpTextbox1">/', $html);
-	$data = preg_split( '/<\/textarea/', $data[1] );
+    $data = preg_split( '/<\/textarea/', $data[1] );
 	$data = preg_split( '/(==.* by .*==)/', $data[0] ); //print_r($data);
 	$data = preg_split( '/(==.*Project Staff.*==|==.*Translators.*==)/', $data[1] ); //print_r($data);
 	$data = trim($data[0]);
@@ -60,7 +60,7 @@ $res = preg_match_all('/(::\*.*)/', trim($volume), $chps);
 	}
 $i++;
 }
-
+ 
 $output = array('title'=>$ln_title,'count'=>count($out),'result'=>$out);
 return $output;
 }
@@ -111,8 +111,9 @@ function getDescForTitle($title){
 	/*if(in_array("This",$descTest)) {
 	$desc = $html->find('html body div div div p',1)->plaintext;
 	}*/
-	return $desc;
+    return $desc;
 }
+
 //Get LN image
 function getImageForTitle($title){
 	$title = str_replace(" ","_",$title);
@@ -127,7 +128,7 @@ function getImageForTitle($title){
 //Get LN synopsis
 function getSynopsisForTitle($title){
 	$title = str_replace(" ","_",$title);
-	$html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title&action=edit");
+	/*$html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title&action=edit");
 	$data = $html->find('html body div div div textarea',0)->plaintext;
 	$data = preg_split( "/(== Story Synopsis ==|==Story Synopsis==|==Synopsis==)/", $data );
 	$data = preg_split( "/(==|==)/", $data[1] );
@@ -136,10 +137,30 @@ function getSynopsisForTitle($title){
 	$synopsis = str_replace("&amp;mdash;","-",$synopsis);
 	if(strpos($synopsis,"http://")){
 	$synopsis = preg_replace("/('''\[.*?\]''')|(\[.*?\])|('''.*?]''')/", '', $synopsis);
-	}
+	}*/
+    
+    $html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title");
+    $container=$html->find("div#mw-content-text *");
+    $synopsis="";
+    
+    $nextItemIsDesc=false;
+    foreach($container as $content)
+    {
+        if($nextItemIsDesc)
+        {
+            $synopsis=$content->plaintext;
+            break;
+        }
+        if($content->tag=="h2" && $content->first_child()->id=="Story_Synopsis")
+        {
+            $nextItemIsDesc=true;
+        }
+    }
+    echo $synopsis;
 	return $synopsis;
 }
 
+getSynopsisForTitle("Absolute Duo");
 function getChapterContentForChapterLink($link)
 {
     $html=file_get_html($link);
@@ -152,17 +173,29 @@ function getChapterContentForChapterLink($link)
         
         if($element->tag=='h3')
         {
+            if($element->children() && $element->firstChild()->tag=='span')
+            {
+                $jsonFormatter[]['h3']=$element->firstChild()->innertext;
+                continue;
+            }
             $jsonFormatter[]['h3']=$element->innertext;
             continue;
         }
         
         if($element->tag=='p')
         {
-            if(count($element->children())==1)
+            if($element->children())
             {
-                if($element->firstChild()->tag=='br') $jsonFormatter[]='\n';
+                $innerText=str_replace("<br>","\n",$element->innertext);
+                //need more logic to seperate italic words as well as span tags
+                //going with the design it would be better to create another array inside ['p'] 
+                //which will contain italic information as well as span tags style
+                $innerText=str_replace('<i>','[I]',$innerText);
+                $innerText=str_replace('</i>','[/I]',$innerText);
+                $jsonFormatter[]['p']=$innerText;
                 continue;
             }
+            
             $jsonFormatter[]['p']=$element->innertext;
             continue;
         }
@@ -182,9 +215,10 @@ function getChapterContentForChapterLink($link)
             $jsonFormatter[]=$arr;
         }
     }
-    
-    return $jsonFormatter;
+    return json_encode($jsonFormatter);
 }
 
-print_r(getChapterContentForChapterLink("http://www.baka-tsuki.org/project/index.php?title=Absolute_Duo:Volume_1_Chapter_1"));
+//$json=getChapterContentForChapterLink("http://www.baka-tsuki.org/project/index.php?title=Absolute_Duo:Volume_1_Chapter_1");
+//var_dump($json);
+
 ?>
