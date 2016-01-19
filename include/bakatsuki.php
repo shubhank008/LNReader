@@ -159,6 +159,83 @@ function getSynopsisForTitle($title){
 	return $synopsis;
 }
 
+function getChapterListForVolumeForTitle($volume,$title)
+{
+    $volumeInfo=array();
+    $title=str_replace(" ","_",$title);
+    $html=file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title");
+    $innerElements=$html->find("div#mw-content-text *");
+    
+    
+    $volume=str_replace(" ","_",$volume);
+    $volEle=false;
+    $countNextThree=1;
+    
+    foreach($innerElements as $element)
+    {
+        if($volEle)
+        {
+            if($countNextThree<=3)
+            {
+                if($element->tag=="div" && $element->class=="thumb tright")
+                {
+                    $volImgLink=$element->first_child()->first_child()->href;
+                    $volumeInfo['volumeImage']=$volImgLink;
+                    $countNextThree++;
+                    continue;
+                }
+                
+                if($element->tag=="dl")
+                {
+                    $data=str_get_html($element->innertext);
+                    $chapterList=$data->find('ul li');
+                    $chapters=array();
+                    foreach($chapterList as $chapter)
+                    {
+                        $tempArr=array();
+                        $chapterTitle=$chapter->first_child()->innertext;
+                        $chapterLink=$chapter->first_child()->href;
+                        
+                        if(hasInnerStyles($chapterTitle))
+                        {
+                            chapTitleFormatter($chapterTitle);
+                        }
+                        $tempArr['chapterTitle']=$chapterTitle;
+                        $tempArr['chapterLink']=$chapterLink;
+                        $chapters[]=$tempArr;
+                    }
+                    
+                    
+                    $volumeInfo['chapterList']=$chapters;
+                    $countNextThree++;
+                    continue;
+                }
+                
+                if($element->tag=='p')
+                {
+                    $countNextThree++;
+                    continue;
+                }
+                
+            }else
+            {
+                $volEle=false;
+                $countNextThree=1;
+                break;
+            }
+        }
+        
+        if($element->tag=="h3" && strpos($element->first_child()->id,$volume)===0)
+        {
+            $volEle=true;
+        }
+    }
+    
+    return $volumeInfo;
+}
+
+print_r(getChapterListForVolumeForTitle("Volume 1","Absolute Duo"));
+
 function getChapterContentForChapterLink($link)
 {
     $html=file_get_html($link);
@@ -213,10 +290,24 @@ function getChapterContentForChapterLink($link)
             $jsonFormatter[]=$arr;
         }
     }
-    return json_encode($jsonFormatter);
+    return $jsonFormatter;
 }
 
-//$json=getChapterContentForChapterLink("http://www.baka-tsuki.org/project/index.php?title=Absolute_Duo:Volume_1_Chapter_1");
-//var_dump($json);
+function hasInnerStyles($string)
+{
+    $html=str_get_html($string);
+    if($html->childNodes())
+    {
+        return true;
+    }
+    
+    return false;
+        
+}
+
+function chapTitleFormatter($title)
+{
+    
+}
 
 ?>
