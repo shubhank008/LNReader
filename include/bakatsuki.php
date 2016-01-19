@@ -196,6 +196,7 @@ function getChapterListForVolumeForTitle($volume,$title)
                         $chapterTitle=$chapter->first_child()->innertext;
                         $chapterLink=$chapter->first_child()->href;
                         
+                        //Need more for style handling and stuff.
                         if(hasInnerStyles($chapterTitle))
                         {
                             chapTitleFormatter($chapterTitle);
