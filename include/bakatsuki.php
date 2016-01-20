@@ -1,7 +1,7 @@
 <?php
 
-require dirname(__FILE__) . '/simple_html_dom.php';
-require dirname(__FILE__) . '/mangaupdates.php';
+require 'simple_html_dom.php';
+require 'mangaupdates.php';
 //require '../db.php';
 
 function getList(){
@@ -18,7 +18,7 @@ $ln_title=$title;
 $title = str_replace(" ","_",$title);
 $html = file_get_contents("http://www.baka-tsuki.org/project/index.php?title=".$title."&action=edit");
 	$data = preg_split('/<textarea readonly="" accesskey="," id="wpTextbox1" cols="80" rows="25" style="" lang="en" dir="ltr" name="wpTextbox1">/', $html);
-	$data = preg_split( '/<\/textarea/', $data[1] );
+    $data = preg_split( '/<\/textarea/', $data[1] );
 	$data = preg_split( '/(==.* by .*==)/', $data[0] ); //print_r($data);
 	$data = preg_split( '/(==.*Project Staff.*==|==.*Translators.*==)/', $data[1] ); //print_r($data);
 	$data = trim($data[0]);
@@ -60,7 +60,7 @@ $res = preg_match_all('/(::\*.*)/', trim($volume), $chps);
 	}
 $i++;
 }
-
+ 
 $output = array('title'=>$ln_title,'count'=>count($out),'result'=>$out);
 return $output;
 }
@@ -111,8 +111,9 @@ function getDescForTitle($title){
 	/*if(in_array("This",$descTest)) {
 	$desc = $html->find('html body div div div p',1)->plaintext;
 	}*/
-	return $desc;
+    return $desc;
 }
+
 //Get LN image
 function getImageForTitle($title){
 	$title = str_replace(" ","_",$title);
@@ -123,10 +124,11 @@ function getImageForTitle($title){
 	}
 	return $images;
 }
+
 //Get LN synopsis
 function getSynopsisForTitle($title){
 	$title = str_replace(" ","_",$title);
-	$html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title&action=edit");
+	/*$html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title&action=edit");
 	$data = $html->find('html body div div div textarea',0)->plaintext;
 	$data = preg_split( "/(== Story Synopsis ==|==Story Synopsis==|==Synopsis==)/", $data );
 	$data = preg_split( "/(==|==)/", $data[1] );
@@ -135,8 +137,177 @@ function getSynopsisForTitle($title){
 	$synopsis = str_replace("&amp;mdash;","-",$synopsis);
 	if(strpos($synopsis,"http://")){
 	$synopsis = preg_replace("/('''\[.*?\]''')|(\[.*?\])|('''.*?]''')/", '', $synopsis);
-	}
+	}*/
+    
+    $html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title");
+    $container=$html->find("div#mw-content-text *");
+    $synopsis="";
+    
+    $nextItemIsDesc=false;
+    foreach($container as $content)
+    {
+        if($nextItemIsDesc)
+        {
+            $synopsis=$content->plaintext;
+            break;
+        }
+        if($content->tag=="h2" && $content->first_child()->id=="Story_Synopsis")
+        {
+            $nextItemIsDesc=true;
+        }
+    }
 	return $synopsis;
+}
+
+function getChapterListForVolumeForTitle($volume,$title)
+{
+    $volumeInfo=array();
+    $title=str_replace(" ","_",$title);
+    $html=file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title");
+    $innerElements=$html->find("div#mw-content-text *");
+    
+    
+    $volume=str_replace(" ","_",$volume);
+    $volEle=false;
+    $countNextThree=1;
+    
+    foreach($innerElements as $element)
+    {
+        if($volEle)
+        {
+            if($countNextThree<=3)
+            {
+                if($element->tag=="div" && $element->class=="thumb tright")
+                {
+                    $volImgLink=$element->first_child()->first_child()->href;
+                    $volumeInfo['volumeImage']=$volImgLink;
+                    $countNextThree++;
+                    continue;
+                }
+                
+                if($element->tag=="dl")
+                {
+                    $data=str_get_html($element->innertext);
+                    $chapterList=$data->find('ul li');
+                    $chapters=array();
+                    foreach($chapterList as $chapter)
+                    {
+                        $tempArr=array();
+                        $chapterTitle=$chapter->first_child()->innertext;
+                        $chapterLink=$chapter->first_child()->href;
+                        
+                        if(hasInnerStyles($chapterTitle))
+                        {
+                            chapTitleFormatter($chapterTitle);
+                        }
+                        $tempArr['chapterTitle']=$chapterTitle;
+                        $tempArr['chapterLink']=$chapterLink;
+                        $chapters[]=$tempArr;
+                    }
+                    
+                    
+                    $volumeInfo['chapterList']=$chapters;
+                    $countNextThree++;
+                    continue;
+                }
+                
+                if($element->tag=='p')
+                {
+                    $countNextThree++;
+                    continue;
+                }
+                
+            }else
+            {
+                $volEle=false;
+                $countNextThree=1;
+                break;
+            }
+        }
+        
+        if($element->tag=="h3" && strpos($element->first_child()->id,$volume)===0)
+        {
+            $volEle=true;
+        }
+    }
+    
+    return $volumeInfo;
+}
+
+print_r(getChapterListForVolumeForTitle("Volume 1","Absolute Duo"));
+
+function getChapterContentForChapterLink($link)
+{
+    $html=file_get_html($link);
+    $data=$html->find('html body div#mw-content-text',0);
+    
+    $jsonFormatter=array();
+    foreach($data->childNodes() as $element)
+    {
+        if($element->tag=='h2' || $element->tag=='comment' || $element->tag=='table') continue;
+        
+        if($element->tag=='h3')
+        {
+            if($element->children() && $element->firstChild()->tag=='span')
+            {
+                $jsonFormatter[]['h3']=$element->firstChild()->innertext;
+                continue;
+            }
+            $jsonFormatter[]['h3']=$element->innertext;
+            continue;
+        }
+        
+        if($element->tag=='p')
+        {
+            if($element->children())
+            {
+                $innerText=str_replace("<br>","\n",$element->innertext);
+                //need more logic to seperate italic words as well as span tags
+                //going with the design it would be better to create another array inside ['p'] 
+                //which will contain italic information as well as span tags style
+                $innerText=str_replace('<i>','[I]',$innerText);
+                $innerText=str_replace('</i>','[/I]',$innerText);
+                $jsonFormatter[]['p']=$innerText;
+                continue;
+            }
+            
+            $jsonFormatter[]['p']=$element->innertext;
+            continue;
+        }
+        
+        if($element->tag=='div' && $element->class=='thumb tright')
+        {
+            $arr=array();
+            $thumbCon=$element->firstChild()->firstChild();
+            if($thumbCon->tag=='a' && $thumbCon->class='image')
+            {
+                $arr['imgLink']=$thumbCon->href;
+                $img=$thumbCon->firstChild();
+                $arr['imgThumbLink']=$img->src;
+                $arr['imgTitle']=$img->alt;
+                $arr['imgSrcSet']=$img->srcset;
+            }
+            $jsonFormatter[]=$arr;
+        }
+    }
+    return $jsonFormatter;
+}
+
+function hasInnerStyles($string)
+{
+    $html=str_get_html($string);
+    if($html->childNodes())
+    {
+        return true;
+    }
+    
+    return false;
+        
+}
+
+function chapTitleFormatter($title)
+{
+    
 }
 
 ?>
