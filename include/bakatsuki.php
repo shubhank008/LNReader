@@ -168,7 +168,7 @@ function getChapterListForVolumeForTitle($volume,$title)
     
     
     $volume=str_replace(" ","_",$volume);
-    $volEle=false;
+    $volEle=false;//check for the three tags which follows the volume header tag
     $countNextThree=1;
     
     foreach($innerElements as $element)
@@ -177,7 +177,7 @@ function getChapterListForVolumeForTitle($volume,$title)
         {
             if($countNextThree<=3)
             {
-                if($element->tag=="div" && $element->class=="thumb tright")
+                if($element->tag=="div" && $element->class=="thumb tright")//volume image
                 {
                     $volImgLink=$element->first_child()->first_child()->href;
                     $volumeInfo['volumeImage']=$volImgLink;
@@ -185,10 +185,9 @@ function getChapterListForVolumeForTitle($volume,$title)
                     continue;
                 }
                 
-                if($element->tag=="dl")
+                if($element->tag=="dl")//main list of chapters
                 {
-                    $data=str_get_html($element->innertext);
-                    $chapterList=$data->find('ul li');
+                    $chapterList=$element->find('ul li');
                     $chapters=array();
                     foreach($chapterList as $chapter)
                     {
@@ -196,11 +195,6 @@ function getChapterListForVolumeForTitle($volume,$title)
                         $chapterTitle=$chapter->first_child()->innertext;
                         $chapterLink=$chapter->first_child()->href;
                         
-                        //Need more for style handling and stuff.
-                        if(hasInnerStyles($chapterTitle))
-                        {
-                            chapTitleFormatter($chapterTitle);
-                        }
                         $tempArr['chapterTitle']=$chapterTitle;
                         $tempArr['chapterLink']=$chapterLink;
                         $chapters[]=$tempArr;
@@ -226,57 +220,62 @@ function getChapterListForVolumeForTitle($volume,$title)
             }
         }
         
-        if($element->tag=="h3" && strpos($element->first_child()->id,$volume)===0)
+        if($element->tag=="h3" && strpos($element->first_child()->id,$volume)===0)//compares $element id atttribute and $volume name
         {
             $volEle=true;
         }
     }
-    
     return $volumeInfo;
+    /*
+        Return Type Format:
+        Array(
+        "volumeImage"="http://image Link",
+        "chapterList"=Array(
+                            Array(
+                                "chapterTitle"="title",
+                                "chapterLink"="http://link"
+                            )
+                    )
+        )
+    */
 }
-
-print_r(getChapterListForVolumeForTitle("Volume 1","Absolute Duo"));
 
 function getChapterContentForChapterLink($link)
 {
+    
     $html=file_get_html($link);
     $data=$html->find('html body div#mw-content-text',0);
     
-    $jsonFormatter=array();
+    $chapConArr=array();
     foreach($data->childNodes() as $element)
     {
-        if($element->tag=='h2' || $element->tag=='comment' || $element->tag=='table') continue;
+        if($element->tag=='h2' || $element->tag=='comment' || $element->tag=='table') continue; //removes extras from the main content 
         
-        if($element->tag=='h3')
+        if($element->tag=='h3') //For Part Titles
         {
             if($element->children() && $element->firstChild()->tag=='span')
             {
-                $jsonFormatter[]['h3']=$element->firstChild()->innertext;
+                $chapConArr[]['h3']=$element->firstChild()->innertext;
                 continue;
             }
-            $jsonFormatter[]['h3']=$element->innertext;
+            $chapConArr[]['h3']=$element->innertext;
             continue;
         }
         
-        if($element->tag=='p')
+        if($element->tag=='p')//The main text of the chapter
         {
             if($element->children())
             {
                 $innerText=str_replace("<br>","\n",$element->innertext);
-                //need more logic to seperate italic words as well as span tags
-                //going with the design it would be better to create another array inside ['p'] 
-                //which will contain italic information as well as span tags style
-                $innerText=str_replace('<i>','[I]',$innerText);
-                $innerText=str_replace('</i>','[/I]',$innerText);
-                $jsonFormatter[]['p']=$innerText;
+                $chapConArr[]['p']=$innerText;
                 continue;
             }
             
-            $jsonFormatter[]['p']=$element->innertext;
+            $chapConArr[]['p']=$element->innertext;
             continue;
         }
         
-        if($element->tag=='div' && $element->class=='thumb tright')
+        if($element->tag=='div' && $element->class=='thumb tright')//image thunmnail shown in between chapter contents
         {
             $arr=array();
             $thumbCon=$element->firstChild()->firstChild();
@@ -288,27 +287,30 @@ function getChapterContentForChapterLink($link)
                 $arr['imgTitle']=$img->alt;
                 $arr['imgSrcSet']=$img->srcset;
             }
-            $jsonFormatter[]=$arr;
+            $chapConArr[]['image']=$arr;
         }
     }
-    return $jsonFormatter;
+    return $chapConArr;
+        /*
+        Return Type Format: As per the position crawled from the page
+        Array(
+            Array(
+                'h3'='text'//for title header (Part Titles)
+            )
+            Array(
+                'p'='text' //for main text
+            )
+            Array(
+                'image'=Array(
+                            'imgLink'='http:link', //main link tag from <a href>attribute
+                            'imgThumbLink'='http:link', //image link for the thumb shown in the page
+                            'imgTitle'='title', //title of image taken from alt
+                            'imgSrcSet'='links' //alternate image links
+                        )
+            )
+        )
+        */
 }
 
-function hasInnerStyles($string)
-{
-    $html=str_get_html($string);
-    if($html->childNodes())
-    {
-        return true;
-    }
-    
-    return false;
-        
-}
-
-function chapTitleFormatter($title)
-{
-    
-}
 
 ?>
