@@ -4,8 +4,10 @@
 $siteLink="http://www.baka-tsuki.org/project/index.php";
 
 class BakaTsuki{
-    
-    public function getList(){
+    ###################################################
+	#########BAKATSUKI CRAWLING FUNCTIONS #############
+	###################################################
+    public function getLN(){
     $titles = array();
     $html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=Category:Light_novel_(English)");
         foreach($html->find('html body div div div table tr td ul li a') as $element) {
@@ -66,28 +68,66 @@ class BakaTsuki{
     return $output;
     }
 
-    private function contains_all($str,array $words) {
-        if(!is_string($str))
-            { return false; }
-
-        foreach($words as $word) {
-            if(!is_string($word) || stripos($str,$word)===false)
-                { return false; }
-        }
-        return true;
-    }
-
-    private function parseThumbnail($thumbnail){
-    if(!strpos($thumbnail,"/thumb/")){
-    return $thumbnail;
-    }
-    $thumbnail = str_replace("/thumb","",$thumbnail);
-    $basename = basename($thumbnail);
-    $thumbnail = str_replace("/$basename","",$thumbnail);
-    return $thumbnail;
-    }
-
     //Get LN Desc
+    public function getDescForTitle($title){ # Gets description for each LN.
+        $title = str_replace(" ","_",$title);
+        $html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title"); 
+		$html = $html->getElementById('mw-content-text'); # Gets all html code inside mw-content-text div.  
+		preg_match("/<\/span><\/h2>(.*?)<\/p><p>(.*?)<\/p>/", $html, $desc); # Tries to get description with this regex.
+		if (empty($abc)){ # If the above failes it tries again.
+			preg_match("/<\/span><\/span><\/h2>(.*?)<\/p>/", $html, $desc);
+		}
+		if (empty($abc)){# If the above failes it tries again.
+			preg_match("/<\/span><\/h2>(.*?)<\/p>/", $html, $desc);
+		}
+		if (empty($abc)){ # If all the above failes it will return "NO DESCRIPTION"
+			#return($html);
+			//return("NO DESCRIPTION");
+			return $this->tryDescForTitle($title);
+		}else{
+			return($desc[0]); # First value in array is always right.
+		}
+		
+	}
+    
+	//Fall back method to try and get Desc if above fails
+	private function tryDescForTitle($title){
+        $title = str_replace(" ","_",$title);
+        $html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title");
+        $desc = $html->find('html body div div div p',0)->plaintext;
+        //$descTest = explode(' ',trim($desc));
+        $words = explode (' ',"This project has been");
+        if($this->contains_all($desc,$words)){
+        $desc = $html->find('html body div div div p',1)->plaintext;
+        //echo "DEBUG inact proj";
+        }
+        if($this->contains_all($desc,explode(' ',"series is also available in the following"))){
+        $desc = "NO DESCRIPTION LAN";
+        $desc = $html->find('html body div div div p',1)->plaintext;
+        }
+        if($this->contains_all($desc,explode(' ',"revive this project by joining the translation"))){
+        $desc = "NO DESCRIPTION REV";
+        $desc = $html->find('html body div div div p',2)->plaintext;
+        }
+        if($this->contains_all($desc,explode(' ',"Abandonment Policy"))){
+        $desc = "NO DESCRIPTION ABAN";
+        $desc = $html->find('html body div div div p',2)->plaintext;
+        }
+        if($this->contains_all($desc,explode(' ',"Light Novel Translation Project."))){
+        $desc = "NO DESCRIPTION TRA";
+        $desc = $html->find('html body div div div p',1)->plaintext;
+        }
+        if($this->contains_all($desc,explode(' ',"is available in the following languages:"))){
+        $desc = "NO DESCRIPTION LAN2";
+        //$desc = $html->find('html body div div div p',1)->plaintext;
+        }
+        /*if(in_array("This",$descTest)) {
+        $desc = $html->find('html body div div div p',1)->plaintext;
+        }*/
+        return $desc;
+	}
+    
+	/*
     public function getDescForTitle($title){
         $title = str_replace(" ","_",$title);
         $html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title");
@@ -109,22 +149,25 @@ class BakaTsuki{
         if($this->contains_all($desc,explode(' ',"is available in the following languages:"))){
         $desc = "";
         }
-        /*if(in_array("This",$descTest)) {
+        if(in_array("This",$descTest)) {
         $desc = $html->find('html body div div div p',1)->plaintext;
-        }*/
+        }
         return $desc;
-    }
+    }*/
 
-    //Get LN image
-    public function getImageForTitle($title){
+	//Get all images from LN detail page
+	public function getImageForTitle($title){
         $title = str_replace(" ","_",$title);
         $images = array();
         $html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=$title");
         foreach($html->find('html body div div div a.image img') as $element) {
-        $images[]=$this->parseThumbnail("http://www.baka-tsuki.org".$element->src);
+        $imgurl = "http://www.baka-tsuki.org".$element->src;
+        if($imgurl!="http://www.baka-tsuki.org/project/images/5/53/Stalled.gif"){
+        $images[]=$this->parseThumbnail($imgurl);
+        }
         }
         return $images;
-    }
+	}
 
     //Get LN synopsis
     public function getSynopsisForTitle($title){
@@ -336,5 +379,30 @@ class BakaTsuki{
         }
         return $updatesArray;
     }
+
+	########################################
+	##### UTILITY FUNCTIONS ################
+	########################################  
+    private function contains_all($str,array $words) {
+        if(!is_string($str))
+            { return false; }
+
+        foreach($words as $word) {
+            if(!is_string($word) || stripos($str,$word)===false)
+                { return false; }
+        }
+        return true;
+    }
+
+    private function parseThumbnail($thumbnail){
+        if(!strpos($thumbnail,"/thumb/")){
+        return $thumbnail;
+        }
+        $thumbnail = str_replace("/thumb","",$thumbnail);
+        $basename = basename($thumbnail);
+        $thumbnail = str_replace("/$basename","",$thumbnail);
+        return $thumbnail;
+    }
+
 }
 ?>
