@@ -26,23 +26,23 @@ class LNScrape extends BakaTsuki{
         $this->DBTableVolList=("tbl_volumeList");#Table For Volume List
         $this->DBTableChapList=("tbl_chapterList");#Table For Chapter List
         $this->DBTableVolIllusList=("tbl_volIllusList");#Table For Volume Illustrations link
+        $this->DBConnect(); # Opens DB connection.
 
     }
-	Private function DBConnect(){ # Creates a new connection to DB.
+	private function DBConnect(){ # Creates a new connection to DB.
 		$this->ConnectionHandler = new PDO("mysql:host=$this->DBHost;dbname=$this->DBDatabase", $this->DBUser, $this->DBHPass);
 	}
-	Private function DBClose(){ # Closes connection to DB.
+	private function DBClose(){ # Closes connection to DB.
 		$this->ConnectionHandler = null;	
 	}
     
-	public function Scrape(){ # Main Function.
+	private function Scrape(){ # Main Function.
 		header('Cache-Control: no-cache'); # Don't allow caching.
 		ini_set('max_execution_time', 300); # Tries to make php timeout longer becuase script takes a while to run.
 		$TitleArray = $this->GetLN(); # Gets array of LN names.
 		$TitleArrayMaxCount = count($TitleArray); # Counts how many LN's in array.
 		$TitleArrayDone = 0;
 		foreach($TitleArray as $Title){ # For each LN in array.
-			$this->DBConnect(); # Opens DB connection.
 			$query = $this->ConnectionHandler->prepare("SELECT * FROM  $this->DBTableLNList WHERE(ln_title='$Title')"); #Tries to find current LN in DB.
 			$query->execute(); # Executes DB query.
 			$Rows = $query->fetchColumn(); # Fetches the number of rows the query returned.
