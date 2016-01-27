@@ -195,7 +195,7 @@ class BakaTsuki{
 
     ################Volume Informations################
 
-    function getVolumeDataForLN()
+    public function getVolumeDataForLN()
     {
         $volumeList=$this->getVolumeList();
         $volArr=array();
@@ -212,7 +212,7 @@ class BakaTsuki{
         return $volArr;
     }
     
-    function getVolumeList(){
+    private function getVolumeList(){
         $lnData=$this->lnEditHTML;
         //$data = preg_split( '/(==.* by .*==)/', $data,2); //print_r($data);
         //$data = preg_split( '/(==.*Project Staff.*==|==.*Translators.*==)/', $data[1],2); //print_r($data);
@@ -239,12 +239,19 @@ class BakaTsuki{
             {
                 $vol=preg_split("/\(\[/",$vol)[0];
             }
+            
+            if(strpos($vol,'|')!=false)
+            {
+            }
+            
+            $vol=str_replace("[",'',$vol);
+
             $volArray[]=trim($vol);
         }
         return $volArray;
     }
     
-    function getAllVolumesContainingText()// if has more than one series 
+    private function getAllVolumesContainingText()// if has more than one series 
     {
         $lnData=$this->lnEditHTML;
         $vol=preg_split('/==.* by .*==/',$lnData);
@@ -261,7 +268,7 @@ class BakaTsuki{
         return $returnText;
     }
 
-    function getChapterListForVolume($volume)
+    private function getChapterListForVolume($volume)
     {
         global $siteMainLink;
         $volumeInfo=array();
@@ -271,75 +278,74 @@ class BakaTsuki{
 
         //$volume=str_replace(" ","_",$volume);
         $volEle=false;
-        $countNextThree=1;
 
         foreach($innerElements as $element)
         {
             
             if($volEle)
             {
-                if($countNextThree<=3)
+                if($element->tag=="div")
                 {
-                    if($element->tag=="div" && $element->class=="thumb tright")
+                    if($element->class=="thumb tright")
                     {
                         $volImgLink=$element->first_child()->first_child()->href;
-                        $volumeInfo['volumeImage']=$siteMainLink.$volImgLink;
-                        $countNextThree++;
-                        continue;
-                    }
-
-                    if($element->tag=="dl")
+                    }else if($element->class=="floatright")
                     {
-                        $data=str_get_html($element->innertext);
-                        $chapterList=$data->find('ul li');
-                        $chapters=array();
-                        foreach($chapterList as $chapter)
-                        {
-                            $tempArr=array();
-                            $chapterTitle=$chapter->first_child()->innertext;
-                            $chapterLink=$chapter->first_child()->href;
-
-                            $tempArr['chapterTitle']=$chapterTitle;
-                            $tempArr['chapterLink']=$siteMainLink.$chapterLink;
-                            $chapters[]=$tempArr;
-                        }
-
-
-                        $volumeInfo['chapterList']=$chapters;
-                        $countNextThree++;
-                        continue;
+                        $volImgLink=$element->first_child()->href;
                     }
-                    
-                    if($element->tag=="ul")
+
+                    $volumeInfo['volumeImage']=$siteMainLink.$volImgLink;
+                    continue;
+                }
+
+                if($element->tag=="dl")
+                {
+                    $data=str_get_html($element->innertext);
+                    $chapterList=$data->find('ul li');
+                    $chapters=array();
+                    foreach($chapterList as $chapter)
                     {
-                        foreach($element->childNodes() as $chapter)
-                        {
-                            $tempArr=array();
-                            $chapterTitle=$chapter->firstChild()->innertext;
-                            $chapterLink=$chapter->firstChild()->href;
+                        $tempArr=array();
+                        $chapterTitle=$chapter->first_child()->innertext;
+                        $chapterLink=$chapter->first_child()->href;
 
-                            $tempArr['chapterTitle']=$chapterTitle;
-                            $tempArr['chapterLink']=$siteMainLink.$chapterLink;
-                            $chapters[]=$tempArr;
-                            
-                        }
-                        
-                        $volumeInfo['chapterList']=$chapters;
-                        $countNextThree++;
-                        continue;
+                        $tempArr['chapterTitle']=$chapterTitle;
+                        if($chapter->first_child()->class=="external text")
+                        { 
+                            $tempArr['chapterLink']=$chapterLink;
+                        }else $tempArr['chapterLink']=$siteMainLink.$chapterLink;
+                        $chapters[]=$tempArr;
                     }
-                    
-                    if($element->tag=='p')
+
+
+                    $volumeInfo['chapterList']=$chapters;
+                    continue;
+                }
+
+                if($element->tag=="ul")
+                {
+                    foreach($element->childNodes() as $chapter)
                     {
-                        $countNextThree++;
-                        continue;
+                        $tempArr=array();
+                        $chapterTitle=$chapter->first_child()->innertext;
+                        $chapterLink=$chapter->first_child()->href;
+
+                        $tempArr['chapterTitle']=$chapterTitle;
+                        if($chapter->first_child()->class=="external text")
+                        { 
+                            $tempArr['chapterLink']=$chapterLink;
+                        }else $tempArr['chapterLink']=$siteMainLink.$chapterLink;
+                        $chapters[]=$tempArr;
+
                     }
 
-                }else
+                    $volumeInfo['chapterList']=$chapters;
+                    continue;
+                }
+
+                if($element->tag=='p' && $element->first_child()->tag=="br")
                 {
                     $volEle=false;
-                    $countNextThree=1;
-                    break;
                 }
             }
             
@@ -350,6 +356,7 @@ class BakaTsuki{
         }
         return $volumeInfo;
     }
+    
     ################Chapter Informations#########################
     public function getChapterContentForLink($link)
     {
@@ -479,7 +486,7 @@ class BakaTsuki{
 
 }
 
-$help=new BakaTsuki("Owari no Chronicle");
+$help=new BakaTsuki("Kino no Tabi");
 function getLN(){
     $titles = array();
     $html = file_get_html("http://www.baka-tsuki.org/project/index.php?title=Category:Light_novel_(English)");
