@@ -14,7 +14,9 @@ class BakaTsuki{
     {
         $title=str_replace(" ","_",$title);
         $this->setLN($title);
-        $this->getVolumeList();
+        
+        print_r($this->getVolumeDataForLN());
+        
     }
     public function setLN($title)
     {
@@ -193,6 +195,23 @@ class BakaTsuki{
 
     ################Volume Informations################
 
+    function getVolumeDataForLN()
+    {
+        $volumeList=$this->getVolumeList();
+        $volArr=array();
+        foreach($volumeList as $volume)
+        {
+            $tempArr=array();
+            $volInfo=$this->getChapterListForVolume($volume);
+            $tempArr['title']=$volume;
+            $tempArr['volImage']=$volInfo['volumeImage'];
+            $tempArr['chapterList']=$volInfo['chapterList'];
+            $volArr[]=$tempArr;
+        }
+        
+        return $volArr;
+    }
+    
     function getVolumeList(){
         $lnData=$this->lnEditHTML;
         //$data = preg_split( '/(==.* by .*==)/', $data,2); //print_r($data);
@@ -222,7 +241,6 @@ class BakaTsuki{
             }
             $volArray[]=trim($vol);
         }
-        print_r($volArray);
         return $volArray;
     }
     
@@ -265,7 +283,7 @@ class BakaTsuki{
                     if($element->tag=="div" && $element->class=="thumb tright")
                     {
                         $volImgLink=$element->first_child()->first_child()->href;
-                        $volumeInfo['volumeImage']=$volImgLink;
+                        $volumeInfo['volumeImage']=$siteMainLink.$volImgLink;
                         $countNextThree++;
                         continue;
                     }
@@ -291,7 +309,26 @@ class BakaTsuki{
                         $countNextThree++;
                         continue;
                     }
+                    
+                    if($element->tag=="ul")
+                    {
+                        foreach($element->childNodes() as $chapter)
+                        {
+                            $tempArr=array();
+                            $chapterTitle=$chapter->firstChild()->innertext;
+                            $chapterLink=$chapter->firstChild()->href;
 
+                            $tempArr['chapterTitle']=$chapterTitle;
+                            $tempArr['chapterLink']=$siteMainLink.$chapterLink;
+                            $chapters[]=$tempArr;
+                            
+                        }
+                        
+                        $volumeInfo['chapterList']=$chapters;
+                        $countNextThree++;
+                        continue;
+                    }
+                    
                     if($element->tag=='p')
                     {
                         $countNextThree++;
