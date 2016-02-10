@@ -5,34 +5,33 @@ define("ROOT_HTTPS","https:");
 define("ROOT_HTTP","http:");
 class Parser
 {
-    private $bookModel;
     private $novel;
-    private $bookCollectionModel;
     
     private $doc;
     private $title;
     
-    public function Parser($title)
+    public function Parser($title) //everything is initiated by parser being the only public function
     {
         $this->title=$title;
         $this->initializeDoc();
         
         $this->bookModel=array();
-        $this->novelModel=array();
+        $this->novel=array();
         $this->bookCollectionModel=array();
         
         
         $this->parseNovelChapters();
+        print_r($this->novel);
     }
     
-    private function initializeDoc()
+    private function initializeDoc()//initializes document of the ln
     {
         $temptitle=str_replace(" ","_",$this->title);
         $link="http://www.baka-tsuki.org/project/index.php?title=".$temptitle;
         $this->doc=file_get_html($link);
     }
     
-    public function parseNovelChapters()
+    private function parseNovelChapters()
     {
         $html=$this->doc;
         $books=array();
@@ -54,18 +53,17 @@ class Parser
                     }
                 }
                 if(!$containsBy) continue;
+                $tempBooks=$this->parseBookMethod1($h2);// MEthod one for much of most ln's
 
-                $tempBooks=$this->parseBookMethod1($h2);
-                
-                if(!$tempBooks!=null && count($tempBooks)>0)
+                if($tempBooks!=null && count($tempBooks)>0)
                 {
                     $books[]=$tempBooks;
                 }
-                
+     
                 if(count($books)==0 || (count($tempBooks)==0 && $oneBookOnly))
                 {
                     $tempBooks=$this->parseBookMethod2($h2);
-                    if(!$tempBooks!=null && count($tempBooks)>0)
+                    if($tempBooks!=null && count($tempBooks)>0)
                     {
                         $oneBookOnly=TRUE;
                         $books[]=$tempBooks;
@@ -84,14 +82,20 @@ class Parser
 
             }
         }
+        $this->novel['title']=$this->title;
+        foreach($books as $book)
+        {
+            $this->novel['bookCollection']=$this->validateNovelBooks($book);
+        }
     }
 
-    private function parseBookMethod1($h2)
+    private function parseBookMethod1($h2)// Method 1
     {
         $books=array();
         
         $bookElement=$h2;
         $walkBook=true;
+        $bookOrder=0;
         do
         {
             $bookElement=$bookElement->next_sibling();
@@ -105,13 +109,17 @@ class Parser
                 {   
                     foreach($h3s as $h3)
                     {
-                        $books[]=$this->processH3($h3);
+                        echo $h3."<br>";
+                        $books[]=$this->processH3($h3,$bookOrder);
+                        ++$bookOrder;
                     }
                 }
             }else if($bookElement->tag=="h3")
             {
-                $books[]=$this->processH3($bookElement);
+                $books[]=$this->processH3($bookElement,$bookOrder);
+                ++$bookOrder;
             }
+
         }while($walkBook);
         return $books;
     }
@@ -123,7 +131,7 @@ class Parser
         
         $bookElement=$h2;
         $walkbook=true;
-        $bookorder=0;
+        $bookOrder=0;
         do
         {
             $bookElement=$bookElement->next_sibling();
@@ -134,20 +142,21 @@ class Parser
             {
                 $book=array();
                 
-                if(strpos($bookElement->innertext,"href")!=FALSE)
+                if(strpos($bookElement->innertext,"href")!==FALSE)
                 {
                     $book['title']=$this->sanitize($bookElement->innertext,true);
                 }else
                 {
                     $book['title']=$this->sanitize($bookElement->innertext,false);
                 }
-            
+                
+                $book['order']=$bookOrder;
+                
                 $chapterCollection=array();
                 
                 $walkChapter=true;
+                $chapterOrder=0;
                 $chapterElement=$bookElement;
-
-                
                 do
                 {
                     $chapterElement=$chapterElement->next_sibling();
@@ -159,40 +168,46 @@ class Parser
                         $walkChapter=FALSE;
                     }else if($chapterElement->tag=="dl" || $chapterElement->tag=="ul" || $chapterElement->tag=="div")
                     {
-                        $array=array();
                         $chapters=$chapterElement->find("li");
                         foreach($chapters as $chapter)
                         {
-                            $array=array();
-                            $array=$this->processLI($chapter);
-                            foreach($array as $p)
+                            $pageModels=$this->processLI($chapter,$chapterOrder);
+                            foreach($pageModels as $p)
                             {
-                                $chapterCollection[]=$p;
+                                if($p!=null)
+                                {
+                                    $chapterCollection[]=$p;
+                                    ++$chapterOrder;
+                                }
                             }
                         }
                     }
                     
+                    //no subchapter
                     if(count($chapterCollection)==0)
                     {
                         $links=$bookElement->find("a");
                         if(count($links)>0)
                         {
                             $link=$links[0];
-                            $p=$this->processA($link->innertext,$link);
-                            if(!empty($p) || $p!=null)
+                            $p=$this->processA($link->innertext,$link,$chapterOrder);
+                            if(!empty($p) && $p!=null)
                             {
                                 $chapterCollection[]=$p;
+                                ++$chapterOrder;
                             }
                         }
                     }
                     $book['chapterCollection']=$chapterCollection;
                 }while($walkChapter);
                 $books[]=$book;
+                ++$bookOrder;
             }
         }while($walkbook);
         return $books;
     }
     
+    //Only have 1 book, chapter list is nested in ul/dl
     private function parseBooksMethod3($h2)
     {
         $books=array();
@@ -210,7 +225,7 @@ class Parser
             }else if($bookElement->tag=="ul" || $bookElement->tagName=="dl")
             {
                 $book=array();
-                if(strpos($h2->innertext,"href")!=FALSE)
+                if(strpos($h2->innertext,"href")!==FALSE)
                 {
                     $book['title']=$this->sanitize($h2->innertext,true);
                 }else
@@ -226,11 +241,14 @@ class Parser
                 $chapters=$bookElement->find("li");
                 foreach($chapters as $chapter)
                 {
-                    $pages=$this->processLI($chapter);
-                    foreach($pages as $page)
+                    $pageModels=$this->processLI($chapter,$chapterOrder);
+                    foreach($pageModels as $p)
                     {
-                        $chapterCollection[]=$page;
-                        ++$chapterOrder;
+                        if($p!=null)
+                        {
+                            $chapterCollection[]=$p;
+                            ++$chapterOrder;
+                        }    
                     }
                 }
                 
@@ -239,16 +257,16 @@ class Parser
                 ++$bookOrder;
             }
         }while($walkBook);
-        print_r($books);
         return $books;
     }
     
     private function parseChapters($bookElement)
     {
+        $chapterCollection=array();
+        
         $walkChapter=true;
         $chapterOrder=0;
         $chapterElement=$bookElement;
-        $chapterCollection=array();
         do
         {
             $chapterElement=$chapterElement->next_sibling();
@@ -263,10 +281,14 @@ class Parser
                 $chapters=$chapterElement->find("li");
                 foreach($chapters as $chapter)
                 {
-                    $tempArr=$this->processLI($chapter);
-                    if($tempArr && count($tempArr)>0)
+                    $pageModels=$this->processLI($chapter,$chapterOrder);
+                    foreach($pageModels as $p)
                     {
-                        $chapterCollection[]=$tempArr;
+                        if($p!=null && !empty($p))
+                        {
+                            $chapterCollection[]=$p;
+                            ++$chapterOrder;
+                        }
                     }
                 }
             }
@@ -287,6 +309,50 @@ class Parser
         return false;
     }
 
+    private function validateNovelBooks($books)
+    {
+        $validatedBooks=array();
+        
+        $bookOrder=0;
+        foreach($books as $book)
+        {
+            $validatedBook=array();
+            $validatedChapters=$this->validateNovelChapters($book);
+            
+            if(count($validatedChapters)>0)
+            {
+                $validatedBook=$book;
+                $validatedBook['chapterCollection']=$validatedChapters;
+                $validatedBook['order']=$bookOrder;
+                $validatedBooks[]=$validatedBook;
+                ++$bookOrder;
+            }
+        }
+        
+        return $validatedBooks;
+    }
+    
+    private function validateNovelChapters($book)
+    {
+        $chapters=$book['chapterCollection'];
+        $validatedChapters=array();
+        $chapterOrder=0;
+        foreach($chapters as $chapter)
+        {
+            if(strpos($chapter['page'],"User:")!==FALSE || strpos($chapter['page'],"Special:BookSources")!==FALSE)
+            {
+                continue;
+            }else
+            {
+                $chapter['order']=$chapterOrder;
+                $validatedChapters[]=$chapter;
+                ++$chapterOrder;
+            }
+               
+        }
+        return $validatedChapters;
+    }
+    
     private function sanitize($title,$isAggressive)
     {
         //echo "Before: ".$title."<br>";
@@ -307,17 +373,18 @@ class Parser
 
     }
 
-    private function processLI($ele)
+    private function processLI($ele,$chapterOrder)
     {
+        $pageModels=array();
+        
         $links=$ele->find("a");
 
-        $page=array();
         if($links || $links!=null || count($links)>0)
         {
             
             foreach($links as $link)
             {
-                if(strpos($link->href,"User_talk:")!=FALSE || strpos($link->href,"User:")!=FALSE) continue;
+                if(strpos($link->href,"User_talk:")!==FALSE || strpos($link->href,"User:")!==FALSE) continue;
                 
                 $linkText=$link->plaintext;
                 if($link->parent()!=$ele)
@@ -325,24 +392,34 @@ class Parser
                     $linkText=$ele->plaintext;
                 }
                 //echo $linkText."<br>";
-                $page[]=$this->processA($linkText,$link);
+                $p=$this->processA($linkText,$link,$chapterOrder);
+                if($p!=null)
+                {
+                    $pageModels[]=$p;
+                }
             }
                 
         }
-        return $page;
+        return $pageModels;
     }
     
-    private function processA($title,$link)
+    private function processA($title,$link,$chapterOrder)
     {
         $href=$link->href;
-        if(strpos($href,"&redlink=1")) return null;
-        
         $p=array();
         $p['title']=$this->sanitize($title,FALSE);
-        
-        if(strpos($link->class,"external text")!=FALSE)
+        $p['order']=$chapterOrder;
+        print_r($href);
+        $pos=strpos($link->href,"&redlink=1");
+        echo $pos."<br>";
+        if(!empty($pos))
         {
-            echo "TRUE";
+            $p['page']="NULL";
+            return $p;
+        }
+        
+        if(strpos($link->class,"external text")!==FALSE)
+        {
             $p['external']="TRUE";
             $p['page']=$this->sanitizeBaseURL($href,false);
         }else
@@ -354,11 +431,11 @@ class Parser
         return $p;
     }
                                                
-    private function processH3($ele)
+    private function processH3($ele,$bookOrder)//processes the h3 and parses the chapter list
     {
         $book=array();
         
-        if(strpos($ele->innertext,"href")!=FALSE)
+        if(strpos($ele->innertext,"href")!==FALSE)
         {
             $book['title']=$this->sanitize($ele->innertext,TRUE);
         }else
@@ -366,7 +443,10 @@ class Parser
             $book['title']=$this->sanitize($ele->innertext,FALSE);
         }
         
+        $book['order']=$bookOrder;
+        
         $chapterCollection=$this->parseChapters($ele);
+        
         if(count($chapterCollection)==0)
         {
             $bookLinks=$ele->find("a");
@@ -376,14 +456,18 @@ class Parser
                 {
                     if(strpos($links->has_attribute("href"),ROOT_URL)==0)
                     {
-                        $p=$this->processA($link->innertext,$link);
-                        $chapterCollection[]=$p;
+                        $p=array();
+                        $p=$this->processA($link->innertext,$link,0);
+                        if($p!=null)
+                        {
+                            $chapterCollection[]=$p;
+                            break;
+                        }
                     }
                 }
             }
         }
-        $book['chapterCollecton']=$chapterCollection;
-        
+        $book['chapterCollection']=$chapterCollection;
         return $book;
     }
     
@@ -399,13 +483,13 @@ class Parser
     {
         if($stripAnchor)
         {
-            if(strpos($url,"#")!=FALSE)
+            if(strpos($url,"#")!==FALSE)
             {   
                 $url=substr(0,strpos($url,"#"));
             }
         }
         
-        if(strpos($url,".blogspot.")!=FALSE)
+        if(strpos($url,".blogspot.")!==FALSE)
         {
             $url=str_replace("?m=1","");
             if(strpos($url,".blogspot.com/")==FALSE)
@@ -417,4 +501,5 @@ class Parser
     }
 }
 
-new Parser("Fate/Apocrypha");
+new Parser("Absolute Duo");
+echo strpos("/project/index.php?title=Absolute_Duo:Volume_7_Epilogue&action=edit&redlink=1","&redlink=1");
