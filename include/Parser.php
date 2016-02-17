@@ -638,3 +638,28 @@ class Parser
     }
 }
 
+#########################################
+/*
+    Return Format in Detail:
+    
+    array(
+        $novel['title']=$title,
+        $novel['bookCollection']=array(
+                                    $book['title']=$title,
+                                    $book['chapterCollection']=array(
+                                                                    $chapter['title']=$title,
+                                                                    $chapter['order']=$order,
+                                                                    $chapter['external']=$bool,
+                                                                    $chapter['page']=$page,
+                                                                    $chapter['partCollection']=array( //if has sub chapters
+                                                                                                    $part['title']=$title,
+                                                                                                    $part['order']=$order,
+                                                                                                    $part['external']=$bool,
+                                                                                                    $part['page']=$page,
+                                                                                            
+                                                                                                )
+                                                                )
+                                )
+    
+*/
+#########################################
